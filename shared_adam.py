@@ -4,7 +4,6 @@ Shared optimizer, the parameters in the optimizer will shared in the multiproces
 
 import torch
 
-
 class SharedAdam(torch.optim.Adam):
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.99), eps=1e-8,
                  weight_decay=0):
@@ -13,7 +12,8 @@ class SharedAdam(torch.optim.Adam):
         for group in self.param_groups:
             for p in group['params']:
                 state = self.state[p]
-                state['step'] = 0
+                # state['step'] = 0
+                state['step'] = torch.zeros(1)
                 state['exp_avg'] = torch.zeros_like(p.data)
                 state['exp_avg_sq'] = torch.zeros_like(p.data)
 

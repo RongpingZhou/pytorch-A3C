@@ -18,12 +18,14 @@ os.environ["OMP_NUM_THREADS"] = "1"
 UPDATE_GLOBAL_ITER = 5
 GAMMA = 0.9
 MAX_EP = 3000
+# MAX_EP = 2
 MAX_EP_STEP = 200
+# MAX_EP_STEP = 2
 
-env = gym.make('Pendulum-v0')
+env = gym.make('Pendulum-v1', new_step_api=True, render_mode='human')
+# env = gym.make('Pendulum-v0')
 N_S = env.observation_space.shape[0]
 N_A = env.action_space.shape[0]
-
 
 class Net(nn.Module):
     def __init__(self, s_dim, a_dim):
@@ -66,7 +68,6 @@ class Net(nn.Module):
         total_loss = (a_loss + c_loss).mean()
         return total_loss
 
-
 class Worker(mp.Process):
     def __init__(self, gnet, opt, global_ep, global_ep_r, res_queue, name):
         super(Worker, self).__init__()
@@ -74,7 +75,8 @@ class Worker(mp.Process):
         self.g_ep, self.g_ep_r, self.res_queue = global_ep, global_ep_r, res_queue
         self.gnet, self.opt = gnet, opt
         self.lnet = Net(N_S, N_A)           # local network
-        self.env = gym.make('Pendulum-v0').unwrapped
+        # self.env = gym.make('Pendulum-v0').unwrapped
+        self.env = gym.make('Pendulum-v1', new_step_api=True, render_mode='human').unwrapped
 
     def run(self):
         total_step = 1
@@ -86,7 +88,9 @@ class Worker(mp.Process):
                 if self.name == 'w0':
                     self.env.render()
                 a = self.lnet.choose_action(v_wrap(s[None, :]))
-                s_, r, done, _ = self.env.step(a.clip(-2, 2))
+                # print(f"a type: {type(a)}; a value: {a}; a.clip(-2, 2): {a.clip(-2, 2)}")
+                s_, r, done, _, _ = self.env.step(a.clip(-2, 2))
+                # print(f"{self.env.step(a.clip(-2, 2))}")
                 if t == MAX_EP_STEP - 1:
                     done = True
                 ep_r += r
@@ -96,10 +100,12 @@ class Worker(mp.Process):
 
                 if total_step % UPDATE_GLOBAL_ITER == 0 or done:  # update global and assign to local net
                     # sync
+                    # print('push and pull')
                     push_and_pull(self.opt, self.lnet, self.gnet, done, s_, buffer_s, buffer_a, buffer_r, GAMMA)
                     buffer_s, buffer_a, buffer_r = [], [], []
 
                     if done:  # done and print information
+                        # print("done")
                         record(self.g_ep, self.g_ep_r, ep_r, self.res_queue, self.name)
                         break
                 s = s_
@@ -114,12 +120,22 @@ if __name__ == "__main__":
     opt = SharedAdam(gnet.parameters(), lr=1e-4, betas=(0.95, 0.999))  # global optimizer
     global_ep, global_ep_r, res_queue = mp.Value('i', 0), mp.Value('d', 0.), mp.Queue()
 
+    print("1st place")
+
     # parallel training
     workers = [Worker(gnet, opt, global_ep, global_ep_r, res_queue, i) for i in range(mp.cpu_count())]
+    # workers = [Worker(gnet, opt, global_ep, global_ep_r, res_queue, i) for i in range(1)]
     [w.start() for w in workers]
+    print("2nd place")
     res = []                    # record episode reward to plot
+    time = 0
     while True:
+        if(time==0):
+            print("3rd place")
         r = res_queue.get()
+        if(time==0):
+            print("4th place")
+            time = time + 1
         if r is not None:
             res.append(r)
         else:

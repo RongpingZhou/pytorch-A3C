@@ -11,7 +11,8 @@ from utils import v_wrap, set_init, push_and_pull, record
 import torch.nn.functional as F
 import torch.multiprocessing as mp
 from shared_adam import SharedAdam
-import gym
+# import gym
+import gymnasium as gym
 import os
 os.environ["OMP_NUM_THREADS"] = "1"
 
@@ -19,7 +20,9 @@ UPDATE_GLOBAL_ITER = 5
 GAMMA = 0.9
 MAX_EP = 3000
 
-env = gym.make('CartPole-v0')
+env = gym.make('CartPole-v1')
+# env = gym.make('CartPole-v1', render_mode='human')
+# env = gym.make('CartPole-v1', new_step_api=True, render_mode='human')
 N_S = env.observation_space.shape[0]
 N_A = env.action_space.n
 
@@ -71,19 +74,27 @@ class Worker(mp.Process):
         self.g_ep, self.g_ep_r, self.res_queue = global_ep, global_ep_r, res_queue
         self.gnet, self.opt = gnet, opt
         self.lnet = Net(N_S, N_A)           # local network
-        self.env = gym.make('CartPole-v0').unwrapped
+        self.env = gym.make('CartPole-v1').unwrapped
+        # self.env = gym.make('CartPole-v1', render_mode='human').unwrapped
+        # self.env = gym.make('CartPole-v1', new_step_api=True, render_mode='human').unwrapped
 
     def run(self):
         total_step = 1
         while self.g_ep.value < MAX_EP:
-            s = self.env.reset()
+            s, _ = self.env.reset()
+            # print(f"s: {s}")
             buffer_s, buffer_a, buffer_r = [], [], []
             ep_r = 0.
             while True:
                 if self.name == 'w00':
                     self.env.render()
+                # print('1st place')
+                # print(f"v_wrap(s[None, :]): {v_wrap(s[None, :])}")
                 a = self.lnet.choose_action(v_wrap(s[None, :]))
-                s_, r, done, _ = self.env.step(a)
+                # self.lnet.choose_action(v_wrap(s[None, :]))
+                # print('2nd place')
+
+                s_, r, done, _, _ = self.env.step(a)
                 if done: r = -1
                 ep_r += r
                 buffer_a.append(a)
